@@ -67,7 +67,23 @@ def apply_masks_to_model(model, masks, dims):
         )
 
 
+def measure_real_sparsity(model):
+    """
+    Count what fraction of the model's parameters are exactly zero after
+    pruning. This is the number reported in Results - it measures actual
+    parameters, not just how many neurons/heads were selected.
+    """
+    total, zeroed = 0, 0
+    for param in model.parameters():
+        total += param.numel()
+        zeroed += (param == 0).sum().item()
+    return zeroed / total
+
+
 def sparsity_of(masks, dims):
+    """Rough unit-level sparsity (what fraction of neurons/heads were
+    selected for pruning). Use measure_real_sparsity() for the actual
+    parameter-level figure."""
     total, pruned = 0, 0
     for m in masks.values():
         total += len(m["mlp"]) + len(m["heads"])

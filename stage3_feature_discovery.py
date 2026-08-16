@@ -48,7 +48,7 @@ def ablate_feature(x_hat, features, feature_idx, decoder_row):
     return x_hat - contribution
 
 
-def causal_verification(sae_model, activations, labels, candidate_idx, device):
+def causal_verification(sae_model, activations, labels, candidate_idx, device, return_details=False):
     x = torch.tensor(activations, dtype=torch.float32, device=device)
     with torch.no_grad():
         features, x_hat = sae_model(x)
@@ -76,6 +76,12 @@ def causal_verification(sae_model, activations, labels, candidate_idx, device):
     threshold = max(max(random_flip_rates), config.CAUSAL_THRESHOLD_FLOOR)
     causal_idx = [idx for idx, fr in candidate_flip_rates.items() if fr >= threshold]
 
+    if return_details:
+        return causal_idx, threshold, {
+            "candidate_flip_rates": candidate_flip_rates,
+            "random_flip_rates": random_flip_rates,
+            "probe_train_accuracy": float(probe.score(x_hat, labels)),
+        }
     return causal_idx, threshold
 
 

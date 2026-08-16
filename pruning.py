@@ -36,9 +36,10 @@ def causal_mlp_importance(layer, causal_feature_directions):
     over all causal features).
     """
     down_proj = layer.mlp.down_proj.weight.data.float()          # [hidden, intermediate]
+    device = down_proj.device
     neuron_dirs = F.normalize(down_proj.T, dim=1)                 # [intermediate, hidden]
     feature_dirs = F.normalize(
-        torch.tensor(causal_feature_directions, dtype=torch.float32), dim=1
+        torch.tensor(causal_feature_directions, dtype=torch.float32, device=device), dim=1
     )
     cos_sim = neuron_dirs @ feature_dirs.T                        # [intermediate, n_causal]
     importance = cos_sim.abs().sum(dim=1)
@@ -52,10 +53,11 @@ def causal_head_importance(layer, causal_feature_directions, n_heads, head_dim):
     head's output-projection slice.
     """
     o_proj = layer.self_attn.o_proj.weight.data.float()
+    device = o_proj.device
     feature_dirs = F.normalize(
-        torch.tensor(causal_feature_directions, dtype=torch.float32), dim=1
+        torch.tensor(causal_feature_directions, dtype=torch.float32, device=device), dim=1
     )
-    importance = torch.zeros(n_heads)
+    importance = torch.zeros(n_heads, device=device)
     for h in range(n_heads):
         w_o_h = o_proj[:, h * head_dim : (h + 1) * head_dim]
         proj = feature_dirs @ w_o_h
@@ -95,7 +97,10 @@ def build_binary_mask(importance, prune_percentile):
     distribution are pruned.
     """
     threshold = np.percentile(importance, prune_percentile)
-    return (importance > threshold).astype(np.float32)
+    mask = (importance > threshold).astype(np.float32)
+    # guarantee: every entry is exactly 0 or exactly 1, never anything between
+    assert np.all((mask == 0) | (mask == 1)), "mask must be strictly binary"
+    return mask
 
 
 # -----------------------------------------------------------------------
@@ -104,6 +109,7 @@ def build_binary_mask(importance, prune_percentile):
 @torch.no_grad()
 def apply_mlp_mask(layer, mask):
     """mask: [intermediate_size] array of 0/1, one entry per MLP neuron."""
+    assert np.all((mask == 0) | (mask == 1)), "mask must be strictly binary"
     mask_t = torch.tensor(mask, dtype=layer.mlp.gate_proj.weight.dtype,
                            device=layer.mlp.gate_proj.weight.device)
     layer.mlp.gate_proj.weight.data *= mask_t.unsqueeze(1)
@@ -114,14 +120,15 @@ def apply_mlp_mask(layer, mask):
 @torch.no_grad()
 def apply_head_mask(layer, mask, n_heads, n_kv_heads, head_dim, heads_per_group):
     """mask: [n_heads] array of 0/1, one entry per query head."""
+    assert np.all((mask == 0) | (mask == 1)), "mask must be strictly binary"
     device = layer.self_attn.q_proj.weight.device
     dtype = layer.self_attn.q_proj.weight.dtype
 
     for h in range(n_heads):
         s, e = h * head_dim, (h + 1) * head_dim
-        scale = float(mask[h])
-        layer.self_attn.q_proj.weight.data[s:e, :] *= scale
-        layer.self_attn.o_proj.weight.data[:, s:e] *= scale
+        keep = float(mask[h])  # exactly 1.0 (keep untouched) or 0.0 (zero out)
+        layer.self_attn.q_proj.weight.data[s:e, :] *= keep
+        layer.self_attn.o_proj.weight.data[:, s:e] *= keep
 
     # a key/value head is shared by a group of query heads (grouped-query
     # attention) - only zero it if every query head in its group is pruned

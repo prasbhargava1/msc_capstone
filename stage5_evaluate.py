@@ -33,6 +33,9 @@ def run(condition):
     else:
         masks, model, tokenizer, dims = stage4.run(condition)
         stage4.apply_masks_to_model(model, masks, dims)
+        sparsity = stage4.measure_real_sparsity(model)
+        print(f"  actual parameter sparsity after pruning: {sparsity:.2%} "
+              f"(fraction of model parameters set to exactly zero)")
 
     pos_id, neg_id = utils.get_pos_neg_token_ids(tokenizer)
 
