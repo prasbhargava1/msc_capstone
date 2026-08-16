@@ -89,7 +89,7 @@ PRUNE_TIERS = [
 # ---------------------------------------------------------------------
 # Evaluation
 # ---------------------------------------------------------------------
-N_EVAL_EXAMPLES = 200
+N_EVAL_EXAMPLES = 1000
 N_VAL_EXAMPLES = 60               # used for fine-tuning checkpoint selection only
 N_BOOTSTRAP_RESAMPLES = 2000
 
