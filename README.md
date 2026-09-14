@@ -24,8 +24,12 @@ stage5_evaluate.py              apply a mask, run the zero-shot eval, save resul
 stage6_bootstrap_compare.py     paired bootstrap between two saved conditions
 stage7_finetune.py              OPTIONAL supplementary fine-tuning check
                                  (not part of the main comparison, see Methodology)
+stage8_cross_domain.py          evaluate a pruned model on the two held-out datasets
+stage9_live_verification.py     ablate the strongest features inside a real Mistral
+                                 forward pass, as a check on stage 3's probe-based test
 
 run_pipeline.py                 runs the main comparison end to end
+run_cross_domain.py             runs the held-out dataset evaluation end to end
 colab_runner.ipynb              same pipeline, set up for Google Colab with
                                  Drive-backed caching (see "Running on Colab" below)
 ```
